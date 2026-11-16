@@ -64,6 +64,17 @@ const definitions = {
     ['facts', 'Facts to verify', 'textarea'],
     ['sources', 'Sources', 'textarea'],
     ['visual', 'Visual direction', 'textarea']
+  ],
+  hooks: [
+    ['storyId', 'Story', 'stories'],
+    ['strategy', 'Hook strategy', 'text'],
+    ['text', 'Opening text', 'text'],
+    ['visual', 'Visual direction', 'textarea']
+  ],
+  ctas: [
+    ['storyId', 'Story', 'stories'],
+    ['strategy', 'CTA objective', 'text'],
+    ['text', 'Call to action', 'text']
   ]
 };
 
@@ -140,6 +151,14 @@ function renderStories() {
     </button>`);
 }
 
+function renderVariations(kind) {
+  return renderCards(state[kind], kind, (variation) => `
+    <div class="cover">${escape(variation.text)}</div>
+    <p><strong>Strategy:</strong> ${escape(variation.strategy)}</p>
+    <p>${escape(variation.visual ?? '')}</p>
+    <p class="muted">Story: ${escape(state.stories.find((story) => story.id === variation.storyId)?.title ?? '')}</p>`);
+}
+
 function render() {
   byId('heading').textContent = currentPage === 'Dashboard' ? 'Editorial Dashboard' : currentPage;
   byId('nav').replaceChildren(...pages.map((page) => {
@@ -150,16 +169,18 @@ function render() {
     return button;
   }));
 
-  const kind = { Dashboard: 'categories', Categories: 'categories', Topics: 'topics', Storytelling: 'stories' }[currentPage];
+  const kind = { Dashboard: 'categories', Categories: 'categories', Topics: 'topics', Storytelling: 'stories', 'Hook Studio': 'hooks', 'CTA Studio': 'ctas' }[currentPage];
   byId('new').hidden = !kind;
-  byId('new').textContent = ({ categories: '+ New category', topics: '+ New topic', stories: '+ New story' })[kind] ?? '+ New item';
+  byId('new').textContent = ({ categories: '+ New category', topics: '+ New topic', stories: '+ New story', hooks: '+ New hook', ctas: '+ New CTA' })[kind] ?? '+ New item';
   byId('new').onclick = () => openEditor(kind, {}, { categoryId: selectedCategory });
 
   const views = {
     Dashboard: renderDashboard,
     Categories: categoryCards,
     Topics: renderTopics,
-    Storytelling: renderStories
+    Storytelling: renderStories,
+    'Hook Studio': () => renderVariations('hooks'),
+    'CTA Studio': () => renderVariations('ctas')
   };
 
   byId('view').innerHTML = views[currentPage]?.()
@@ -284,6 +305,10 @@ document.addEventListener('click', (event) => {
   }
 
   if (remove) {
+    if (remove === 'stories' && ['hooks', 'ctas'].some((kind) => state[kind].some((item) => item.storyId === id))) {
+      alert('Remove related creative variations first.');
+      return;
+    }
     if (remove === 'topics' && state.stories.some((story) => story.topicId === id)) {
       alert('Remove related stories first.');
       return;
