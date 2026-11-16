@@ -75,6 +75,14 @@ const definitions = {
     ['storyId', 'Story', 'stories'],
     ['strategy', 'CTA objective', 'text'],
     ['text', 'Call to action', 'text']
+  ],
+  scenes: [
+    ['storyId', 'Story', 'stories'],
+    ['sequence', 'Sequence', 'number'],
+    ['role', 'Narrative role', 'text'],
+    ['text', 'Text or narration', 'textarea'],
+    ['visual', 'Visual direction', 'textarea'],
+    ['duration', 'Duration in seconds', 'number']
   ]
 };
 
@@ -159,6 +167,60 @@ function renderVariations(kind) {
     <p class="muted">Story: ${escape(state.stories.find((story) => story.id === variation.storyId)?.title ?? '')}</p>`);
 }
 
+let timelineStory = '';
+
+function storySelector() {
+  if (!state.stories.some((story) => story.id === timelineStory)) {
+    timelineStory = state.stories[0]?.id ?? '';
+  }
+  return `<label for="storyFilter">Story</label><select id="storyFilter">${state.stories.map((story) =>
+    `<option value="${escape(story.id)}" ${story.id === timelineStory ? 'selected' : ''}>${escape(story.title)}</option>`
+  ).join('')}</select>`;
+}
+
+function orderedScenes() {
+  return state.scenes.filter((scene) => scene.storyId === timelineStory)
+    .sort((a, b) => Number(a.sequence) - Number(b.sequence));
+}
+
+function renderStoryboard() {
+  return storySelector() + renderCards(orderedScenes(), 'scenes', (scene) =>
+    `<span class="badge">${escape(scene.sequence)} · ${escape(scene.role)}</span>
+    <p>${escape(scene.visual)}</p><p>${escape(scene.duration)} seconds</p>`);
+}
+
+function renderTimeline() {
+  const selector = storySelector();
+  const scenes = orderedScenes();
+  const total = scenes.reduce((sum, scene) => sum + Number(scene.duration), 0);
+
+  if (!scenes.length) {
+    return selector + '<p>Create storyboard scenes to preview the video timeline.</p>';
+  }
+
+  return selector + `<article class="card timeline">
+    <h2>Video Production Timeline</h2>
+    <p>${total} seconds · Draft timing preview</p>
+    <div class="track"><span>Video</span><div class="segments">${scenes.map((scene) =>
+      `<div class="segment" style="flex: ${Math.max(1, Number(scene.duration) || 1)}">${escape(scene.role)}</div>`
+    ).join('')}</div></div>
+    ${['Voice', 'Music', 'Text'].map((track) => `
+      <div class="track"><span>${track}</span><div class="segments">
+        <div class="segment" style="flex: 1">${track === 'Voice' ? 'Narration planned' : track === 'Music' ? 'Soundtrack planned' : 'Captions planned'}</div>
+      </div></div>`).join('')}
+    <p class="muted">Timing preview only; narration, music and caption tracks are not rendered yet.</p>
+  </article>`;
+}
+
+function renderBrand() {
+  const colors = ['#251810', '#70503a', '#b58a5c', '#e6d5ba', '#f7f3eb'];
+  return `<article class="card"><h2>Premium editorial direction</h2>
+    <p>Warm cinematic color grading, realistic rights-cleared photography, rich detail and editorial typography.</p>
+    <div class="grid">${colors.map((color) =>
+      `<div><div class="swatch" style="background: ${color}"></div>${color}</div>`
+    ).join('')}</div><p>Private prompts and production assets are not included.</p></article>`;
+}
+
 function render() {
   byId('heading').textContent = currentPage === 'Dashboard' ? 'Editorial Dashboard' : currentPage;
   byId('nav').replaceChildren(...pages.map((page) => {
@@ -169,10 +231,10 @@ function render() {
     return button;
   }));
 
-  const kind = { Dashboard: 'categories', Categories: 'categories', Topics: 'topics', Storytelling: 'stories', 'Hook Studio': 'hooks', 'CTA Studio': 'ctas' }[currentPage];
+  const kind = { Dashboard: 'categories', Categories: 'categories', Topics: 'topics', Storytelling: 'stories', 'Hook Studio': 'hooks', 'CTA Studio': 'ctas', Storyboard: 'scenes' }[currentPage];
   byId('new').hidden = !kind;
-  byId('new').textContent = ({ categories: '+ New category', topics: '+ New topic', stories: '+ New story', hooks: '+ New hook', ctas: '+ New CTA' })[kind] ?? '+ New item';
-  byId('new').onclick = () => openEditor(kind, {}, { categoryId: selectedCategory });
+  byId('new').textContent = ({ categories: '+ New category', topics: '+ New topic', stories: '+ New story', hooks: '+ New hook', ctas: '+ New CTA', scenes: '+ New scene' })[kind] ?? '+ New item';
+  byId('new').onclick = () => openEditor(kind, {}, { categoryId: selectedCategory, storyId: timelineStory });
 
   const views = {
     Dashboard: renderDashboard,
@@ -180,7 +242,10 @@ function render() {
     Topics: renderTopics,
     Storytelling: renderStories,
     'Hook Studio': () => renderVariations('hooks'),
-    'CTA Studio': () => renderVariations('ctas')
+    'CTA Studio': () => renderVariations('ctas'),
+    Storyboard: renderStoryboard,
+    'Video Timeline': renderTimeline,
+    'Brand Studio': renderBrand
   };
 
   byId('view').innerHTML = views[currentPage]?.()
@@ -189,6 +254,13 @@ function render() {
   if (byId('categoryFilter')) {
     byId('categoryFilter').onchange = (event) => {
       selectedCategory = event.target.value;
+      render();
+    };
+  }
+
+  if (byId('storyFilter')) {
+    byId('storyFilter').onchange = (event) => {
+      timelineStory = event.target.value;
       render();
     };
   }
@@ -242,7 +314,7 @@ function openEditor(kind, item = {}, defaults = {}) {
         `<option value="${escape(option.id)}" ${option.id === value ? 'selected' : ''}>${escape(option.name ?? option.title)}</option>`
       ).join('')}</select>`;
     } else {
-      input = `<input required name="${name}" id="f-${name}" value="${escape(value)}">`;
+      input = `<input required name="${name}" id="f-${name}" type="${type === 'number' ? 'number' : 'text'}" ${type === 'number' ? 'min="1" max="86400" step="1"' : ''} value="${escape(value)}">`;
     }
 
     return `<label for="f-${name}">${label}</label>${input}`;
@@ -263,12 +335,21 @@ byId('editform').onsubmit = (event) => {
       alert('Create the related item first.');
       return;
     }
+    if (type === 'number' && (!Number.isInteger(Number(values[name])) || Number(values[name]) < 1 || Number(values[name]) > 86400)) {
+      alert('Enter a positive whole number up to 86400.');
+      return;
+    }
     if (type === 'text' && !values[name].trim()) {
       alert('A required field is empty.');
       return;
     }
   }
 
+  if (kind === 'scenes' && state.scenes.some((scene) => scene.id !== item.id && scene.storyId === values.storyId && Number(scene.sequence) === Number(values.sequence))) {
+    alert('This story already contains that sequence number.');
+    return;
+  }
+  if (kind === 'scenes') timelineStory = values.storyId;
   const updated = { ...item, ...values, id: item.id ?? newId() };
   if (kind === 'stories') updated.status = 'draft';
   state[kind] = item.id
@@ -305,7 +386,7 @@ document.addEventListener('click', (event) => {
   }
 
   if (remove) {
-    if (remove === 'stories' && ['hooks', 'ctas'].some((kind) => state[kind].some((item) => item.storyId === id))) {
+    if (remove === 'stories' && ['hooks', 'ctas', 'scenes'].some((kind) => state[kind].some((item) => item.storyId === id))) {
       alert('Remove related creative variations first.');
       return;
     }
