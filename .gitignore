@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+/vendor/
+/logs/*
+!/logs/.gitkeep
+/storage/
+__pycache__/
+*.pyc
