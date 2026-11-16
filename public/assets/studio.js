@@ -55,6 +55,15 @@ const definitions = {
     ['categoryId', 'Category', 'categories'],
     ['name', 'Title', 'text'],
     ['description', 'Description', 'textarea']
+  ],
+  stories: [
+    ['topicId', 'Topic', 'topics'],
+    ['title', 'Title', 'text'],
+    ['angle', 'Narrative angle', 'text'],
+    ['summary', 'Narrative', 'textarea'],
+    ['facts', 'Facts to verify', 'textarea'],
+    ['sources', 'Sources', 'textarea'],
+    ['visual', 'Visual direction', 'textarea']
   ]
 };
 
@@ -119,6 +128,18 @@ function renderTopics() {
     )}`;
 }
 
+function renderStories() {
+  return renderCards(state.stories, 'stories', (story) => `
+    <span class="badge">${escape(story.status ?? 'draft')}</span>
+    <p><strong>Angle:</strong> ${escape(story.angle)}</p>
+    <p><strong>Facts to verify:</strong> ${escape(story.facts)}</p>
+    <p><strong>Sources:</strong> ${escape(story.sources)}</p>
+    <p><strong>Visual direction:</strong> ${escape(story.visual)}</p>
+    <button class="secondary" data-approve="${escape(story.id)}">
+      ${story.status === 'approved' ? 'Return to draft' : 'Approve story'}
+    </button>`);
+}
+
 function render() {
   byId('heading').textContent = currentPage === 'Dashboard' ? 'Editorial Dashboard' : currentPage;
   byId('nav').replaceChildren(...pages.map((page) => {
@@ -129,15 +150,16 @@ function render() {
     return button;
   }));
 
-  const kind = { Dashboard: 'categories', Categories: 'categories', Topics: 'topics' }[currentPage];
+  const kind = { Dashboard: 'categories', Categories: 'categories', Topics: 'topics', Storytelling: 'stories' }[currentPage];
   byId('new').hidden = !kind;
-  byId('new').textContent = kind === 'topics' ? '+ New topic' : '+ New category';
+  byId('new').textContent = ({ categories: '+ New category', topics: '+ New topic', stories: '+ New story' })[kind] ?? '+ New item';
   byId('new').onclick = () => openEditor(kind, {}, { categoryId: selectedCategory });
 
   const views = {
     Dashboard: renderDashboard,
     Categories: categoryCards,
-    Topics: renderTopics
+    Topics: renderTopics,
+    Storytelling: renderStories
   };
 
   byId('view').innerHTML = views[currentPage]?.()
@@ -227,6 +249,7 @@ byId('editform').onsubmit = (event) => {
   }
 
   const updated = { ...item, ...values, id: item.id ?? newId() };
+  if (kind === 'stories') updated.status = 'draft';
   state[kind] = item.id
     ? state[kind].map((entry) => entry.id === item.id ? updated : entry)
     : [...state[kind], updated];
@@ -239,7 +262,7 @@ byId('editform').onsubmit = (event) => {
 document.addEventListener('click', (event) => {
   const button = event.target.closest('button');
   if (!button) return;
-  const { edit, remove, category, id } = button.dataset;
+  const { edit, remove, category, id, approve } = button.dataset;
 
   if (category) {
     selectedCategory = category;
@@ -251,7 +274,20 @@ document.addEventListener('click', (event) => {
     if (item) openEditor(edit, item);
   }
 
+  if (approve) {
+    const story = state.stories.find((entry) => entry.id === approve);
+    if (story) {
+      story.status = story.status === 'approved' ? 'draft' : 'approved';
+      saveState();
+      render();
+    }
+  }
+
   if (remove) {
+    if (remove === 'topics' && state.stories.some((story) => story.topicId === id)) {
+      alert('Remove related stories first.');
+      return;
+    }
     if (remove === 'categories' && state.topics.some((topic) => topic.categoryId === id)) {
       alert('Remove related topics first.');
       return;
