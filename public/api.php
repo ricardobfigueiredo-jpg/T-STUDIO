@@ -21,6 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
         'mode' => 'demo',
         'request_id' => $GLOBALS['request_id'],
     ];
+} elseif ($action === 'topics') {
+    $result = [
+        'mode' => 'sample_catalog',
+        'topics' => require dirname(__DIR__) . '/app/catalog.php',
+    ];
 } else {
     $status = 404;
     $result = ['error' => 'not_found'];
@@ -29,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 http_response_code($status);
 
 studio_log('INFO', 'api_response', [
-    'action' => $action === 'health' ? 'health' : 'unknown',
+    'action' => in_array($action, ['health', 'topics'], true) ? $action : 'unknown',
     'status' => $status,
 ]);
 
